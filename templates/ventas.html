@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Facturas Emitidas - Glow Up Cosméticos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Historial de Facturación & Comprobantes</h2>
+    <p>Auditoría de facturas electrónicas emitidas, desglose impositivo y acceso a comprobantes oficiales.</p>
+  </div>
+  <a href="/pos" class="btn btn-primary">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+    + Emitir Nueva Factura
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div style="display: flex; gap: 1rem; flex: 1; max-width: 500px;">
+      <input type="text" id="buscadorVentas" class="form-control" placeholder="Buscar por cliente, CUIT o número..." oninput="filtrarVentas()">
+      <select id="filtroTipoVenta" class="form-select" style="max-width: 170px;" onchange="filtrarVentas()">
+        <option value="Todos">Todos</option>
+        <option value="A">Solo Factura A</option>
+        <option value="B">Solo Factura B</option>
+      </select>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Total: <strong>{{ ventas|length }}</strong> comprobantes
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tablaVentas">
+      <thead>
+        <tr>
+          <th>Comprobante</th>
+          <th>Fecha & Hora</th>
+          <th>Cliente / Razón Social</th>
+          <th>CUIT Receptor</th>
+          <th>Condición IVA</th>
+          <th style="text-align: right;">Neto Gravado</th>
+          <th style="text-align: right;">IVA (21%)</th>
+          <th style="text-align: right;">Total</th>
+          <th style="text-align: center;">Estado</th>
+          <th style="text-align: center;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in ventas %}
+        <tr class="fila-venta" data-tipo="{{ v.tipo_comprobante }}">
+          <td>
+            <span class="badge {% if v.tipo_comprobante == 'A' %}badge-a{% else %}badge-b{% endif %}">
+              Factura {{ v.tipo_comprobante }}
+            </span>
+            <div style="font-weight: 700; font-size: 0.85rem; margin-top: 2px;">
+              {{ "%04d-%08d" % (v.punto_venta, v.numero_comprobante) }}
+            </div>
+          </td>
+          <td style="font-size: 0.82rem; color: var(--slate);">{{ v.fecha[:16] }}</td>
+          <td><strong>{{ v.cliente_nombre }}</strong></td>
+          <td>
+            {% if v.cliente_cuit %}
+            <code>{{ v.cliente_cuit }}</code>
+            {% else %}
+            <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-info" style="font-size: 0.72rem;">{{ v.cliente_condicion_iva }}</span></td>
+          <td style="text-align: right; color: var(--slate);">${{ "{:,.2f}".format(v.subtotal_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: right; color: #1e40af; font-weight: 600;">${{ "{:,.2f}".format(v.iva_total).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: right; font-weight: 700; color: var(--dark); font-size: 0.95rem;">${{ "{:,.2f}".format(v.total).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: center;">
+            {% if v.estado == 'EMITIDA' %}
+            <span class="badge badge-success">Emitida</span>
+            {% else %}
+            <span class="badge badge-danger">Anulada</span>
+            {% endif %}
+          </td>
+          <td style="text-align: center; white-space: nowrap;">
+            <a href="/comprobante/{{ v.id }}" class="btn btn-secondary btn-sm" title="Ver comprobante oficial">
+              🖨️ Ver / Imprimir
+            </a>
+            {% if v.estado == 'EMITIDA' %}
+            <button type="button" class="btn btn-outline btn-sm" style="color: var(--danger); border-color: #fca5a5;" onclick="confirmarAnulacion({{ v.id }})" title="Anular comprobante y reintegrar stock">
+              Anular
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">No hay comprobantes emitidos.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

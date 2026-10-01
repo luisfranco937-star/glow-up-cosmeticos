@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Clientes & Padrón Fiscal - Glow Up Cosméticos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Padrón de Clientes & Validación Fiscal</h2>
+    <p>Administración de clientes comerciales, condición tributaria ante AFIP y verificación de CUIT (Módulo 11).</p>
+  </div>
+  <button type="button" class="btn btn-primary" onclick="abrirModalNuevoCliente()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+    + Registrar Nuevo Cliente
+  </button>
+</div>
+
+<!-- Herramienta Interactiva Didáctica: Validador de CUIT AFIP -->
+<div class="card" style="background: linear-gradient(135deg, #f8fafc, #ffffff); border-left: 4px solid var(--primary);">
+  <div class="card-body">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div style="flex: 1; min-width: 280px;">
+        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--dark); margin-bottom: 0.2rem;">
+          🔍 Comprobador de CUIT Oficial AFIP (Algoritmo Módulo 11)
+        </h4>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">
+          Requisito fundamental para emisión de <strong>Factura A</strong>: verifica el dígito verificador y estructura impositiva.
+        </p>
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 300px;">
+        <input type="text" id="testCuitInput" class="form-control" placeholder="Ingrese CUIT de prueba (ej: 30654891234)">
+        <button type="button" class="btn btn-secondary" onclick="probarCuitDesdeInput()">Verificar</button>
+      </div>
+    </div>
+    <div id="testCuitResultado" style="margin-top: 0.75rem; font-size: 0.85rem; display: none;"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div style="max-width: 400px; width: 100%;">
+      <input type="text" id="buscadorClientes" class="form-control" placeholder="Buscar por razón social o CUIT..." oninput="filtrarClientes()">
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Total: <strong>{{ clientes|length }}</strong> clientes registrados
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tablaClientes">
+      <thead>
+        <tr>
+          <th>Razón Social / Nombre</th>
+          <th>CUIT / CUIL</th>
+          <th>Condición frente al IVA</th>
+          <th>Facturación Habilitada</th>
+          <th>Domicilio Fiscal</th>
+          <th>Contacto</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr class="fila-cliente">
+          <td><strong>{{ c.razon_social }}</strong></td>
+          <td>
+            {% if c.cuit %}
+            <code style="font-size: 0.9rem; font-weight: 600;">{{ c.cuit }}</code>
+            {% else %}
+            <span style="color: var(--text-muted); font-size: 0.8rem;">Sin CUIT (Mostrador)</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge {% if c.condicion_iva == 'IVA Responsable Inscripto' %}badge-a{% elif c.condicion_iva == 'Monotributo' %}badge-b{% else %}badge-info{% endif %}">
+              {{ c.condicion_iva }}
+            </span>
+          </td>
+          <td>
+            {% if c.condicion_iva == 'IVA Responsable Inscripto' %}
+            <span class="badge badge-success" style="font-size: 0.75rem;">Factura A y B</span>
+            {% else %}
+            <span class="badge badge-warning" style="font-size: 0.75rem;">Solo Factura B</span>
+            {% endif %}
+          </td>
+          <td>{{ c.domicilio or '-' }}</td>
+          <td style="font-size: 0.8rem;">
+            <div>{{ c.telefono or '' }}</div>
+            <div style="color: var(--text-muted);">{{ c.email or '' }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Nuevo Cliente -->
+<div id="modalNuevoCliente" class="modal-backdrop">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Registrar Nuevo Cliente</h3>
+      <button class="close-btn" onclick="cerrarModalNuevoCliente()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formNuevoCliente" onsubmit="guardarNuevoCliente(event)">
+        <div class="form-group">
+          <label class="form-label" for="newRazonSocial">Razón Social o Nombre Completo *:</label>
+          <input type="text" id="newRazonSocial" class="form-control" required placeholder="Ej: Distribuidora Perfum S.A.">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newCondicionIva">Condición frente al IVA *:</label>
+          <select id="newCondicionIva" class="form-select" onchange="alCambiarCondicionNuevoCliente()">
+            <option value="IVA Responsable Inscripto">IVA Responsable Inscripto (Habilita Factura A)</option>
+            <option value="Monotributo">Monotributo</option>
+            <option value="Consumidor Final">Consumidor Final</option>
+            <option value="Exento">Exento</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newCuit">CUIT / CUIL (11 dígitos) *:</label>
+          <input type="text" id="newCuit" class="form-control" placeholder="Ej: 30-71829341-9" oninput="validarCuitEnVivo(this.value)">
+          <small id="cuitValidationMsg" style="font-size: 0.75rem; margin-top: 4px; display: block;"></small>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newDomicilio">Domicilio Fiscal:</label>
+          <input type="text" id="newDomicilio" class="form-control" placeholder="Ej: Av. Callao 1250, CABA">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newTelefono">Teléfono:</label>
+            <input type="text" id="newTelefono" class="form-control" placeholder="011-4821-4455">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newEmail">Email:</label>
+            <input type="email" id="newEmail" class="form-control" placeholder="contacto@cliente.com">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem 0 0 0;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoCliente()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Punto de Venta & Facturación A - Glow Up Cosméticos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Punto de Venta (Terminal de Facturación)</h2>
+    <p>Emisión de comprobantes fiscales electrónicos con soporte y validación estricta de <strong>Factura A</strong>.</p>
+  </div>
+</div>
+
+<div class="pos-layout">
+
+  <!-- Columna Izquierda: Selección de Cliente y Catálogo de Productos -->
+  <div>
+    
+    <!-- 1. SELECCIÓN DE CLIENTE Y COMPROBANTE -->
+    <div class="card" style="margin-bottom: 1.25rem;">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span>👤</span> Datos del Cliente & Tipo de Comprobante
+        </h3>
+        <button type="button" class="btn btn-outline btn-sm" onclick="abrirModalNuevoCliente()">+ Nuevo Cliente</button>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label class="form-label" for="clienteSelect">Seleccionar Cliente:</label>
+            <select id="clienteSelect" class="form-select" onchange="alCambiarCliente()">
+              {% for c in clientes %}
+              <option value="{{ c.id }}" 
+                      data-condicion="{{ c.condicion_iva }}" 
+                      data-cuit="{{ c.cuit or '' }}" 
+                      data-domicilio="{{ c.domicilio or '' }}"
+                      {% if c.condicion_iva == 'IVA Responsable Inscripto' %}selected{% endif %}>
+                {{ c.razon_social }} ({{ c.condicion_iva }}{% if c.cuit %} - CUIT: {{ c.cuit }}{% endif %})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" for="tipoComprobante">Comprobante:</label>
+            <select id="tipoComprobante" class="form-select" onchange="alCambiarTipoComprobante()" style="font-weight: 700;">
+              <option value="A" selected>Factura A (Discrimina IVA)</option>
+              <option value="B">Factura B (Consumidor Final)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Banner Informativo Fiscal Dinámico -->
+        <div id="bannerFiscal" class="factura-a-box">
+          <h5>
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Régimen Fiscal Factura "A" (AFIP)
+          </h5>
+          <p id="fiscalText">
+            Comprobante oficial para clientes <strong>Responsables Inscriptos</strong> con CUIT verificado. Se discrimina el Neto Gravado y el 21% de IVA para crédito fiscal.
+          </p>
+        </div>
+
+        <!-- Alerta de Incompatibilidad Fiscal si aplica -->
+        <div id="alertaFiscalInvalida" class="alert alert-danger" style="display: none; margin-bottom: 0;">
+          <span>⛔</span>
+          <div id="mensajeAlertaFiscal"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. CATÁLOGO DE PRODUCTOS COSMÉTICOS -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span>💄</span> Catálogo de Productos Cosméticos
+        </h3>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Haz click en un producto para sumarlo a la factura
+        </div>
+      </div>
+      <div class="card-body">
+        
+        <!-- Filtros y Búsqueda -->
+        <div class="product-search-bar">
+          <input type="text" id="buscadorProducto" class="form-control" placeholder="Buscar por nombre, SKU o marca..." oninput="filtrarCatalogo()">
+          <select id="filtroCategoria" class="form-select" style="max-width: 200px;" onchange="filtrarCatalogo()">
+            <option value="Todas">Todas las Categorías</option>
+            <option value="Skincare">Skincare</option>
+            <option value="Make-Up">Make-Up</option>
+            <option value="Fragancias">Fragancias</option>
+            <option value="Cuidado Capilar">Cuidado Capilar</option>
+            <option value="Accesorios">Accesorios</option>
+          </select>
+        </div>
+
+        <!-- Grid de Tarjetas de Productos -->
+        <div id="gridProductos" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; max-height: 520px; overflow-y: auto; padding: 4px;">
+          {% for p in productos %}
+          <div class="card producto-item" 
+               data-id="{{ p.id }}" 
+               data-codigo="{{ p.codigo }}"
+               data-nombre="{{ p.nombre }}"
+               data-marca="{{ p.marca }}"
+               data-categoria="{{ p.categoria }}"
+               data-neto="{{ p.precio_neto }}"
+               data-iva="{{ p.alicuota_iva }}"
+               data-stock="{{ p.stock_actual }}"
+               style="margin: 0; padding: 0.85rem; cursor: pointer; border: 1px solid var(--border); transition: all 0.2s;"
+               onclick="agregarAlCarrito({{ p.id }}, '{{ p.codigo }}', '{{ p.nombre }}', {{ p.precio_neto }}, {{ p.alicuota_iva }}, {{ p.stock_actual }})"
+               onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='translateY(-2px)'"
+               onmouseout="this.style.borderColor='var(--border)'; this.style.transform='none'">
+            
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.4rem;">
+              <span class="badge badge-info" style="font-size: 0.7rem;">{{ p.categoria }}</span>
+              <span class="badge {% if p.stock_actual <= p.stock_minimo %}badge-danger{% else %}badge-success{% endif %}" style="font-size: 0.7rem;">
+                Stock: {{ p.stock_actual }}
+              </span>
+            </div>
+            
+            <h4 style="font-size: 0.88rem; font-weight: 600; color: var(--dark); line-height: 1.3; min-height: 2.4em;">
+              {{ p.nombre }}
+            </h4>
+            
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem;">
+              {{ p.marca }} &bull; SKU: {{ p.codigo }}
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: baseline; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
+              <div>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Neto (sin IVA):</span>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--primary);">
+                  ${{ "{:,.2f}".format(p.precio_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span style="font-size: 0.7rem; color: var(--text-muted);">IVA:</span>
+                <div style="font-size: 0.8rem; font-weight: 600; color: var(--slate);">{{ p.alicuota_iva }}%</div>
+              </div>
+            </div>
+
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Columna Derecha: Panel de Carrito, Liquidación Fiscal y Cobro -->
+  <div class="pos-cart-panel">
+    <div class="card-header" style="background-color: #fafbfc;">
+      <h3 class="card-title">
+        <span>🛒</span> Detalle de Factura
+      </h3>
+      <button type="button" class="btn btn-outline btn-sm" onclick="vaciarCarrito()" title="Limpiar Carrito">Vaciar</button>
+    </div>
+
+    <!-- Lista de Artículos en Carrito -->
+    <div id="cartItemsList" class="cart-items-list">
+      <div id="cartEmptyMsg" style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🛍️</div>
+        <p style="font-weight: 600;">El carrito está vacío</p>
+        <p style="font-size: 0.8rem;">Selecciona productos del catálogo para facturar.</p>
+      </div>
+      <div id="cartRows"></div>
+    </div>
+
+    <!-- Liquidación Impositiva y Totales -->
+    <div class="cart-totals">
+      <div class="total-line">
+        <span>Subtotal Neto Gravado:</span>
+        <strong id="resumenNeto">$0,00</strong>
+      </div>
+      <div class="total-line" id="lineaIva">
+        <span>IVA Débito Fiscal (21%):</span>
+        <strong id="resumenIva" style="color: #1e40af;">$0,00</strong>
+      </div>
+      <div class="total-line highlight">
+        <span>TOTAL FACTURADO:</span>
+        <span id="resumenTotal" style="color: var(--primary);">$0,00</span>
+      </div>
+
+      <!-- Opciones de Cobro -->
+      <div style="margin-top: 1.25rem;">
+        <label class="form-label" for="metodoPagoSelect">Medio de Pago:</label>
+        <select id="metodoPagoSelect" class="form-select">
+          <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Cuenta Corriente">Cuenta Corriente (Mayorista)</option>
+        </select>
+      </div>
+
+      <div style="margin-top: 0.75rem;">
+        <label class="form-label" for="obsVenta">Observaciones (Opcional):</label>
+        <input type="text" id="obsVenta" class="form-control" placeholder="Ej: Pedido N° 1045, entrega pactada...">
+      </div>
+
+      <!-- Botón de Facturar -->
+      <div style="margin-top: 1.25rem;">
+        <button id="btnEmitirFactura" type="button" class="btn btn-primary" style="width: 100%; padding: 0.85rem;" onclick="procesarEmisionFactura()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span id="btnEmitirTexto">Emitir Factura A</span>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Modal para Crear Nuevo Cliente -->
+<div id="modalNuevoCliente" class="modal-backdrop">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Registrar Nuevo Cliente</h3>
+      <button class="close-btn" onclick="cerrarModalNuevoCliente()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formNuevoCliente" onsubmit="guardarNuevoCliente(event)">
+        <div class="form-group">
+          <label class="form-label" for="newRazonSocial">Razón Social o Nombre Completo *:</label>
+          <input type="text" id="newRazonSocial" class="form-control" required placeholder="Ej: Farmacia Del Parque S.R.L.">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newCondicionIva">Condición frente al IVA *:</label>
+          <select id="newCondicionIva" class="form-select" onchange="alCambiarCondicionNuevoCliente()">
+            <option value="IVA Responsable Inscripto">IVA Responsable Inscripto (Habilita Factura A)</option>
+            <option value="Monotributo">Monotributo</option>
+            <option value="Consumidor Final">Consumidor Final</option>
+            <option value="Exento">Exento</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newCuit">CUIT / CUIL (11 dígitos) *:</label>
+          <input type="text" id="newCuit" class="form-control" placeholder="Ej: 30-71829341-9" oninput="validarCuitEnVivo(this.value)">
+          <small id="cuitValidationMsg" style="font-size: 0.75rem; margin-top: 4px; display: block;"></small>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="newDomicilio">Domicilio Fiscal:</label>
+          <input type="text" id="newDomicilio" class="form-control" placeholder="Ej: Av. Córdoba 1450, CABA">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newTelefono">Teléfono:</label>
+            <input type="text" id="newTelefono" class="form-control" placeholder="011-4567-8901">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newEmail">Email:</label>
+            <input type="email" id="newEmail" class="form-control" placeholder="compras@cliente.com">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem 0 0 0;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoCliente()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar y Seleccionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Éxito Emisión Factura con botón a imprimir comprobante -->
+<div id="modalExitoFactura" class="modal-backdrop">
+  <div class="modal-content" style="text-align: center;">
+    <div class="modal-body" style="padding: 2.5rem 1.5rem;">
+      <div style="font-size: 3.5rem; color: var(--success); margin-bottom: 0.75rem;">✅</div>
+      <h3 style="font-size: 1.4rem; color: var(--dark); margin-bottom: 0.5rem;" id="modalExitoTitulo">¡Comprobante Emitido con Éxito!</h3>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;" id="modalExitoDetalle"></p>
+      
+      <div style="background-color: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.5rem; text-align: left; font-size: 0.88rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+          <span>CAE Otorgado:</span>
+          <strong id="modalExitoCae" style="font-family: monospace; font-size: 0.95rem;"></strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+          <span>Vencimiento CAE:</span>
+          <strong id="modalExitoCaeVto"></strong>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Total Facturado:</span>
+          <strong id="modalExitoTotal" style="color: var(--primary); font-size: 1rem;"></strong>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: center; gap: 1rem;">
+        <a id="btnVerComprobante" href="#" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+          🖨️ Ver e Imprimir Factura A
+        </a>
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalExito()">
+          Nueva Venta
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Inicialización de la pantalla POS
+  document.addEventListener('DOMContentLoaded', () => {
+    alCambiarCliente();
+  });
+</script>
+{% endblock %}

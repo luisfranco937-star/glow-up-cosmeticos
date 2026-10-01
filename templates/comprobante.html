@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Comprobante Fiscal - {{ venta.tipo_comprobante }} {{ venta.numero_formateado }} - Glow Up Cosméticos{% endblock %}
+
+{% block content %}
+<div class="no-print" style="max-width: 820px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <a href="/ventas" class="btn btn-outline btn-sm">⬅️ Volver al Listado</a>
+  </div>
+  <div style="display: flex; gap: 0.75rem;">
+    <a href="/pos" class="btn btn-secondary btn-sm">➕ Nueva Factura</a>
+    <button onclick="window.print()" class="btn btn-primary">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+      Imprimir Comprobante (PDF)
+    </button>
+  </div>
+</div>
+
+<!-- FORMATO REGLAMENTARIO DE COMPROBANTE FISCAL AFIP (MODELO FACTURA A / B) -->
+<div class="factura-papel">
+  
+  <!-- CABECERA DE LA FACTURA -->
+  <div class="factura-cabecera">
+    
+    <!-- Recuadro Central con Letra A o B y Código -->
+    <div class="factura-letra-box">
+      <div class="letra">{{ venta.letra }}</div>
+      <div class="cod-afip">COD. {{ venta.codigo_afip }}</div>
+    </div>
+
+    <!-- Emisor (Lado Izquierdo) -->
+    <div class="factura-col-izq">
+      <div class="factura-titulo" style="color: #c44569;">{{ empresa.nombre_fantasia }}</div>
+      <div style="font-weight: 700; margin-bottom: 4px;">{{ empresa.razon_social }}</div>
+      <div style="font-size: 11px; color: #444;">
+        <div><strong>Domicilio:</strong> {{ empresa.domicilio }}</div>
+        <div><strong>Teléfono:</strong> {{ empresa.telefono }}</div>
+        <div><strong>Email:</strong> {{ empresa.email }}</div>
+        <div style="margin-top: 4px;"><strong>Condición IVA:</strong> {{ empresa.condicion_iva }}</div>
+      </div>
+    </div>
+
+    <!-- Espacio del medio ocupado por la letra -->
+    <div style="border-right: 1px solid #2d3436;"></div>
+
+    <!-- Datos del Comprobante (Lado Derecho) -->
+    <div class="factura-col-der">
+      <div class="factura-titulo" style="text-align: right;">{{ venta.descripcion_afip }}</div>
+      <div style="font-size: 11px; text-align: right; margin-bottom: 8px;">
+        <div><strong>Punto de Venta:</strong> {{ "%04d" % venta.punto_venta }} &nbsp; <strong>Comp. Nro:</strong> {{ "%08d" % venta.numero_comprobante }}</div>
+        <div><strong>Fecha de Emisión:</strong> {{ venta.fecha[:10] }}</div>
+      </div>
+      <div style="font-size: 11px; border-top: 1px dashed #ccc; padding-top: 6px; text-align: right;">
+        <div><strong>CUIT:</strong> {{ empresa.cuit }}</div>
+        <div><strong>Ingresos Brutos:</strong> {{ empresa.ingresos_brutos }}</div>
+        <div><strong>Fecha Inicio Actividades:</strong> {{ empresa.inicio_actividades }}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DATOS DEL CLIENTE / RECEPTOR -->
+  <div class="factura-datos-cliente">
+    <div>
+      <div><strong>CUIT / Documento:</strong> {{ venta.cliente_cuit or "Sin CUIT (Consumidor Final)" }}</div>
+      <div><strong>Razón Social / Nombre:</strong> {{ venta.cliente_nombre }}</div>
+      <div><strong>Condición frente al IVA:</strong> {{ venta.cliente_condicion_iva }}</div>
+    </div>
+    <div>
+      <div><strong>Domicilio Comercial:</strong> {{ venta.cliente_domicilio or "-" }}</div>
+      <div><strong>Condición de Venta / Pago:</strong> {{ venta.metodo_pago }}</div>
+      {% if venta.observaciones %}
+      <div><strong>Observaciones:</strong> {{ venta.observaciones }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TABLA DE ARTÍCULOS / PRODUCTOS FACTURADOS -->
+  <table class="factura-tabla-items">
+    <thead>
+      <tr>
+        <th style="width: 70px;">Código</th>
+        <th>Descripción del Producto</th>
+        <th style="width: 50px; text-align: center;">Cant.</th>
+        <th style="width: 50px; text-align: center;">U.M.</th>
+        <th style="width: 90px; text-align: right;">Precio Unit. Neto</th>
+        <th style="width: 60px; text-align: center;">% IVA</th>
+        <th style="width: 90px; text-align: right;">Subtotal Neto</th>
+        {% if venta.tipo_comprobante == 'A' %}
+        <th style="width: 85px; text-align: right;">IVA Liquidado</th>
+        {% endif %}
+        <th style="width: 95px; text-align: right;">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.producto_codigo }}</td>
+        <td><strong>{{ item.producto_nombre }}</strong></td>
+        <td style="text-align: center;">{{ item.cantidad }}</td>
+        <td style="text-align: center;">unid.</td>
+        <td style="text-align: right;">${{ "{:,.2f}".format(item.precio_unitario_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+        <td style="text-align: center;">{{ item.alicuota_iva }}%</td>
+        <td style="text-align: right;">${{ "{:,.2f}".format(item.subtotal_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+        {% if venta.tipo_comprobante == 'A' %}
+        <td style="text-align: right; color: #1e40af;">${{ "{:,.2f}".format(item.subtotal_iva).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+        {% endif %}
+        <td style="text-align: right; font-weight: 600;">${{ "{:,.2f}".format(item.subtotal_total).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- PIE DE FACTURA CON DISCRIMINACIÓN FISCAL -->
+  <div class="factura-pie-fiscal">
+    
+    <div>
+      <p style="font-size: 10px; color: #555; margin-bottom: 8px;">
+        Régimen de Facturación Electrónica AFIP - Comprobante Autorizado.
+        El crédito fiscal discriminado en el presente comprobante solo podrá ser computado a efectos del Impuesto al Valor Agregado por Responsables Inscriptos.
+      </p>
+      
+      <!-- Simulación Código QR Oficial AFIP -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px;">
+        <div style="background: white; border: 1px solid #000; padding: 4px; display: inline-block;">
+          <!-- SVG QR Code simulado y estético -->
+          <svg width="70" height="70" viewBox="0 0 25 25" fill="#000">
+            <rect x="1" y="1" width="7" height="7" fill="none" stroke="#000" stroke-width="1.5"/>
+            <rect x="3" y="3" width="3" height="3"/>
+            <rect x="17" y="1" width="7" height="7" fill="none" stroke="#000" stroke-width="1.5"/>
+            <rect x="19" y="3" width="3" height="3"/>
+            <rect x="1" y="17" width="7" height="7" fill="none" stroke="#000" stroke-width="1.5"/>
+            <rect x="3" y="19" width="3" height="3"/>
+            <rect x="10" y="2" width="2" height="4"/>
+            <rect x="13" y="5" width="2" height="3"/>
+            <rect x="10" y="10" width="5" height="5"/>
+            <rect x="17" y="11" width="2" height="5"/>
+            <rect x="21" y="10" width="3" height="2"/>
+            <rect x="10" y="17" width="4" height="2"/>
+            <rect x="15" y="19" width="2" height="5"/>
+            <rect x="19" y="17" width="5" height="2"/>
+            <rect x="19" y="21" width="2" height="3"/>
+          </svg>
+        </div>
+        <div style="font-size: 10px; color: #333;">
+          <div style="font-weight: bold; margin-bottom: 2px;">ARCA / AFIP</div>
+          <div>Comprobante Electrónico</div>
+          <div style="font-size: 9px; color: #666; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            {{ venta.qr_url }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Liquidación de Totales -->
+    <div class="factura-desglose-impuestos">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <span>Importe Neto Gravado:</span>
+        <strong>${{ "{:,.2f}".format(venta.subtotal_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+      </div>
+      
+      {% if venta.tipo_comprobante == 'A' %}
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #1e40af;">
+        <span>IVA Débito Fiscal 21%:</span>
+        <strong>${{ "{:,.2f}".format(venta.iva_total).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+      </div>
+      {% else %}
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; color: #666;">
+        <span>IVA Incorporado (Ley 24.977):</span>
+        <span>${{ "{:,.2f}".format(venta.iva_total).replace(",", "X").replace(".", ",").replace("X", ".") }}</span>
+      </div>
+      {% endif %}
+
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <span>Otros Tributos:</span>
+        <span>$0,00</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid #2d3436; font-size: 14px;">
+        <strong>IMPORTE TOTAL:</strong>
+        <strong style="color: #c44569; font-size: 16px;">
+          ${{ "{:,.2f}".format(venta.total).replace(",", "X").replace(".", ",").replace("X", ".") }}
+        </strong>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PIE DE AUTORIZACIÓN CAE -->
+  <div class="factura-cae-box">
+    <div>
+      <span style="font-size: 11px; font-weight: bold;">CAE N°: </span>
+      <span style="font-family: monospace; font-size: 13px; font-weight: bold; letter-spacing: 1px;">{{ venta.cae }}</span>
+    </div>
+    <div>
+      <span style="font-size: 11px; font-weight: bold;">Fecha de Vto. de CAE: </span>
+      <span style="font-size: 12px; font-weight: bold;">{{ venta.cae_vto }}</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

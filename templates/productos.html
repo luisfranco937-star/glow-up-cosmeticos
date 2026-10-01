@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Inventario de Cosméticos - Glow Up Cosméticos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Catálogo de Productos & Inventario</h2>
+    <p>Administración de artículos cosméticos, precios de costo, precios netos, alícuotas de IVA y control de stock.</p>
+  </div>
+  <button type="button" class="btn btn-primary" onclick="abrirModalNuevoProducto()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+    + Nuevo Producto Cosmético
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div style="display: flex; gap: 1rem; flex: 1; max-width: 600px;">
+      <input type="text" id="buscadorTablaProductos" class="form-control" placeholder="Buscar por código, nombre o marca..." oninput="filtrarTablaProductos()">
+      <select id="filtroCategoriaTabla" class="form-select" style="max-width: 180px;" onchange="filtrarTablaProductos()">
+        <option value="Todas">Todas</option>
+        {% for cat in categorias %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Total: <strong>{{ productos|length }}</strong> productos
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tablaProductos">
+      <thead>
+        <tr>
+          <th>Código (SKU)</th>
+          <th>Nombre del Producto</th>
+          <th>Marca</th>
+          <th>Categoría</th>
+          <th style="text-align: right;">Costo</th>
+          <th style="text-align: right;">Neto (s/IVA)</th>
+          <th style="text-align: center;">IVA</th>
+          <th style="text-align: right;">PVP (Final)</th>
+          <th style="text-align: center;">Stock</th>
+          <th style="text-align: center;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in productos %}
+        {% set pvp = p.precio_neto * (1 + p.alicuota_iva / 100) %}
+        <tr class="fila-producto" data-categoria="{{ p.categoria }}">
+          <td><code>{{ p.codigo }}</code></td>
+          <td><strong>{{ p.nombre }}</strong></td>
+          <td>{{ p.marca }}</td>
+          <td><span class="badge badge-info">{{ p.categoria }}</span></td>
+          <td style="text-align: right; color: var(--text-muted);">${{ "{:,.2f}".format(p.precio_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: right; font-weight: 600; color: var(--primary);">${{ "{:,.2f}".format(p.precio_neto).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: center;">{{ p.alicuota_iva }}%</td>
+          <td style="text-align: right; font-weight: 700;">${{ "{:,.2f}".format(pvp).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+          <td style="text-align: center;">
+            <span class="badge {% if p.stock_actual <= p.stock_minimo %}badge-danger{% else %}badge-success{% endif %}">
+              {{ p.stock_actual }} u.
+            </span>
+          </td>
+          <td style="text-align: center;">
+            {% if p.stock_actual <= p.stock_minimo %}
+            <span class="badge badge-warning">Stock Crítico</span>
+            {% else %}
+            <span class="badge badge-success">Disponible</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Nuevo Producto -->
+<div id="modalNuevoProducto" class="modal-backdrop">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Dar de Alta Producto Cosmético</h3>
+      <button class="close-btn" onclick="cerrarModalNuevoProducto()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formNuevoProducto" onsubmit="guardarNuevoProducto(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="prodCodigo">Código SKU / Barra *:</label>
+            <input type="text" id="prodCodigo" class="form-control" required placeholder="Ej: SKU-014">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prodCategoria">Categoría *:</label>
+            <select id="prodCategoria" class="form-select">
+              <option value="Skincare">Skincare</option>
+              <option value="Make-Up">Make-Up</option>
+              <option value="Fragancias">Fragancias</option>
+              <option value="Cuidado Capilar">Cuidado Capilar</option>
+              <option value="Accesorios">Accesorios</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="prodNombre">Nombre del Producto *:</label>
+          <input type="text" id="prodNombre" class="form-control" required placeholder="Ej: Exfoliante Facial Enzimático 100ml">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="prodMarca">Marca:</label>
+            <input type="text" id="prodMarca" class="form-control" placeholder="Ej: Glow Up Pro">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prodAlicuota">Alícuota IVA %:</label>
+            <select id="prodAlicuota" class="form-select">
+              <option value="21.0">21.0% (General)</option>
+              <option value="10.5">10.5% (Diferencial)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="prodCosto">Precio de Costo ($):</label>
+            <input type="number" step="0.01" id="prodCosto" class="form-control" required placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prodNeto">Precio Neto de Venta (sin IVA) ($) *:</label>
+            <input type="number" step="0.01" id="prodNeto" class="form-control" required placeholder="0.00">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="prodStock">Stock Inicial:</label>
+            <input type="number" id="prodStock" class="form-control" required value="10" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prodStockMin">Stock Mínimo de Alerta:</label>
+            <input type="number" id="prodStockMin" class="form-control" required value="5" min="1">
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 0 0 0;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoProducto()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
