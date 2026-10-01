@@ -7,3 +7,5 @@ venv/
 *.zip
 .vscode/
 .idea/
+
+.vercel

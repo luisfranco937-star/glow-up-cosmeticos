@@ -3,10 +3,20 @@ Configuración general de la aplicación y parámetros fiscales del emisor
 Glow Up Cosméticos S.R.L.
 """
 
+import os
+import shutil
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "glow_up.db"
+
+if os.environ.get("VERCEL"):
+    TEMP_DB = Path("/tmp") / "glow_up.db"
+    ORIGINAL_DB = BASE_DIR / "glow_up.db"
+    if not TEMP_DB.exists() and ORIGINAL_DB.exists():
+        shutil.copy2(ORIGINAL_DB, TEMP_DB)
+    DB_PATH = TEMP_DB
+else:
+    DB_PATH = BASE_DIR / "glow_up.db"
 
 # Datos Fiscales de la Empresa Emisora (Responsable Inscripto)
 EMPRESA = {
